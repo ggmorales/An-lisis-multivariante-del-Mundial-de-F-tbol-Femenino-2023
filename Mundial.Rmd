@@ -1,0 +1,469 @@
+---
+title: "Análisis multivariante del Mundial de fútbol femenino 2023"
+author: "Guillermo Alberto González Morales"
+date: 'Última modificación: 19 de febrero de 2024'
+output:
+  html_document:
+    toc: true
+    toc_depth: 5
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: show
+---
+
+
+<div class=text-justify>
+
+## Introducción
+Siendo conocedores de la complejidad intrínseca en un deporte tan completo como el fútbol, donde el resultado de un partido puede venir marcado por gran cantidad de factores incontrolables que en númerosas ocasiones no se pueden medir, nuestro objetivo en este estudio es comprender, en la medida de lo posible, que es lo que ha acontecido en la fase de grupos del mundial de fútbol femenino de 2023, cuales han sido las variables más relevantes para explicar el éxito y el fracaso de los diferentes equipos, o en otras palabras, ¿en qué se caracteriza un equipo ganador? ¿Y uno perdedor? Para ello, hemos decidido extraer los datos que consideramos más significativos y exprimirlos cuantitativamente a partir del uso de técnicas estadísticas multivariantes, de esta manera, esperamos obtener resultados que nos ayuden a profundizar más en el entendimiento del juego.
+
+
+## Base de datos original
+
+La base de datos original fue creada seleccionando las variables que consideramos de mayor relevancia a partir de los informes de resultados postpartido publicados por la FIFA. Dicha base contiene datos sobre todos los partidos disputados en la fase de grupos del mundial. Cada país aparece tres veces puesto que ha disputado tres partidos.
+
+Las variables confeccionadas y definidas son las siguientes:
+
+- EQUIPO
+- JORNADA: Primer partido = 1, segundo partido = 2, tercer partido = 3.
+- RESULTADO: Ganar = 1, perder = 0, empatar = 2.
+- LANZA: Tiros totales.
+- GOLES: Goles marcados en el partido.
+- TSR: Ratio de lanzamientos totales. Lanzamientos a favor, dividido entre lanzamientos a favor más lanzamientos en contra. Un ratio cercano a 1 implica menos tiros en contra y más tiros a favor, y al contrario si se acerca a cero.
+- PRECTIR: Precisión de los tiros. Tiros a puerta entre tiros totales. Cuanto más se aceque a 1 mayor será la precisión en el tiro.
+- BPO: Balón parado ofensivo. Corners a favor totales más faltas directas a favor totales.
+- PRECENT: Precisión en los centros. Centros completados entre centros totales.
+- SEGJUG: Balones obtenidos de segundas jugadas.
+- POREXREM: Porcentaje de éxito en el remate. Goles entre tiros totales.
+- FINALTHIRD: Porcentaje con balón en último tercio.
+- HIGHBLOCK: Porcentaje sin balón en bloque bajo.
+- LOWBLOCK: Porcentaje en presión alta.
+- ALTLINDEF: Altura media de la línea defensiva en fase ofensiva en último tercio.
+- ALTLINPRES: Altura media de la línea defensiva en presión alta.
+- ALTBLOQBAJ: Altura media del área del bloque en bloque bajo sin balón.
+- DUELOGAN: Duelos fisicos y aéreos ganados.
+- RATDUELO: Ratio de duelos ganados. Duelos ganados propios entre duelos ganados por el rival. Un valor de 1 indicaría la misma cantidad de duelos ganados que el rival en el partido, mientras que valores por encima significarían que el equipo ha ganado más duelos que su rival, ganando menos que este si el valor se encuentra por debajo de 1.
+- CLEARANCES: Despejes.
+- POSE: Porcentaje de posesión.
+- PASINTE: Pases intentados.
+- PASCOM: Pases completados.
+- PRECPASE: Porcentaje de pases completados.
+- PASRUP: Pases de ruptura.
+- RUPLINDEF: Pases de ruptura de línea defensiva.
+- RECULTER: Recepciones en último tercio.
+- CENINT: Centros intentados.
+- CENTCOM: Centros completados.
+- RECUPE: Recuperaciones.
+- INTERCE: Intercepciones.
+- TACKLE: Entradas.
+- IIJ: Índice de iniciativa de juego. Porcentaje de posesión + [(tiros a favor + goles a favor) – (tiros contra + goles contra)] x 1.5.
+- IPGJO: Índice de progresión de juego ofensivo. (Tiros a favor + goles a favor / pases totales) x 100
+- TRECBAL: Tiempo medio de recuperación del balón en segundos.
+- DISTREC: Distancia total recorrida.
+- DISTZ4: Distancia recorrida en Z4 (entre 19 y 23 km/h).
+- DISTZ5: Distancia recorrida en Z5 (más de 23 km/h).
+
+
+```{r}
+setwd("E:/TRABAJO/Deporte")
+library(readxl)
+data_original <- read_excel("data_original.xlsx")
+```
+
+```{r}
+data_original
+```
+
+## Base de datos transformada
+
+Sin embargo, la base de datos original no posee el formato ideal para llevar a cabo nuestro análisis, es por ello que hemos decidido transformarla de manera que solo aparezca un registro por equipo/país. Para ello, hemos obtenido las medias de cada variable por equipo, consiguiendo una matriz con menos registros que conserve toda la información. Además, hemos eliminado las variables  JORNADA  y  RESULTADO.
+
+```{r message = FALSE, warning = FALSE}
+
+library(dplyr)
+library(openxlsx)
+
+calcular_medias <- function(equipo, data) {
+  equipo_data <- filter(data, Equipo == equipo)
+  medias <- round(colMeans(equipo_data[,4:38]), 2)
+  return(medias)
+}
+
+# Lista de equipos
+equipos <- sort(unique(data_original$Equipo))
+
+# Calcular medias para cada equipo
+lista_medias <- lapply(equipos, data = data_original, calcular_medias)
+
+# Crear un data frame con las medias
+data1 <- data.frame(Equipo = equipos, do.call(rbind, lista_medias))
+
+# Escribir a archivo Excel
+write.xlsx(data1, "data.xlsx")
+
+```
+
+```{r}
+data <- read_excel("data.xlsx")
+data
+```
+
+## Análisis descriptivo 
+Comprobamos la naturaleza de las variables y vemos que, menos Equipo, todas son numéricas. A continuación, convertimos la variable equipo de tipo caracter a tipo factor para distinguir los equipos.
+
+```{r}
+cat("Dimensiones de data:", dim(data))
+str(data)
+summary(data)
+data$Equipo <- as.factor(data$Equipo)
+print(is.factor(data$Equipo))
+
+
+```
+
+Ahora, antes de aplicar cualquier técnica a nuestra base de datos, es necesario conocer como están correlacionadas las variables entre sí, para ello crearemos un gráfico de calor que represente la matriz de correlaciones. Posteriormente, calcularemos el determinante de la matriz, puesto que un valor bajo, proximo a 0, indicará una alta correlación entre las variables, lo que nos ayudará a entender que, técnicas como el análisis de componentes principales podrán ser implementadas, ya que este reduce la dimensión de nuestra base de datos construyendo variables latentes, que denomina componentes principales (CPs), las cuales reunen información de grupos de variables que están altamente correlacionadas entre sí.
+
+```{r message = FALSE, warning = FALSE, fig.width=9, fig.height=9}
+library(corrplot)
+matriz_cor = cor(data[,-1]) 
+plot.new()
+corrplot(matriz_cor, method = "color", tl.cex = 0.45)
+cat("Determinante:", round(det(matriz_cor),90))
+```
+
+Obtenemos un  determinante próximo a 0, nuestras variables están lo suficientemente correlacionadas como para poder aplicar un análisis de componentes principales a nuestra base de datos.
+
+## Análisis de Componentes Principales (ACP)
+El motivo por el que hemos elegido esta técnica es que su principal función es reducir la dimensionalidad de nuestros datos, ya que contamos con demasiadas variables que complicarían mucho la interpretabilidad de los resultados, además, en otras técnicas como la regresión, trabajar con tantas variables puede ser perjudicial para el modelo, ya que debido a problemas de colinealidad, las variables corren el riesgo de convertirse en redundantes. De esta manera, podremos trabajar con unas pocas variables o componentes princiales sin perder mucha información, ya que cada nueva variable latente creada por el ACP resumirá la información de grupos de variables con altas correlaciones entre sí, obteniendo nuevas variables independientes que no solo facilitan la interpretación de los resltados sino que posibilitan el trabajo. 
+En primer lugar, obtenemos los autovalores y autovectores con el fin construir un gráfico de sedimentación que nos ayude a elegir el número de componentes con el que trabajar en nuestro modelo. Dicho gráfico refleja cada uno de los autovalores de la matriz de correlación asociada a cada una de las componentes (CPs) calculadas. 
+
+```{r message = FALSE, warning = FALSE, fig.width=8, fig.height=5}
+(autoval = eigen(matriz_cor)$values)
+autovec = eigen(matriz_cor)$vectors #No display
+barplot(autoval, main = "Gráfico de sedimentación", 
+     ylab = "Autovalor", xlab = "Componentes Principales",ylim = c(0,20), type = "h", col = "red", width = 1)
+abline(h=1,lty=2,col= "black")    
+axis(2, at = 1, labels = "1", pos = NA) 
+```
+
+A continuación, con la función _prcomp()_ aplicamos el ACP a nuestra base de datos, y con los parametros _center_ y _scale_ estandarizamos todas las variables, ya que tienen diferentes escalas y algunas poseen un peso mayor, por lo que podrían alterar los resultados.
+
+Con la función _summary()_ podemos conocer el % de varianza explicada por cada componente y vemos que se verifica lo que dice teoría: Las primeras componentes por orden son las que más varianza explican. De esta manera, se observa que la primera componente principal es aquella combinación lineal de las variables originales de máxima varianza y, por teoría, sabemos que la varianza de las componentes principales coincide con los autovalores de la matriz de correlaciones.En nuestro caso, solo las primeras 6 componentes explican ya el 80% de la varianza, es decir, el ACP consigue, con solo 6 variables latentes, resumir el 80% de la información que aportan 35 variables.
+
+```{r message = FALSE, warning = FALSE}
+library(factoextra)
+acp <- prcomp(data[,-1],center=TRUE, scale=TRUE)
+acp$rotation[,3] <- (acp$rotation[,3])*-1
+summary(acp)
+acp
+acp$x[,3] <- (acp$x[,3])*-1
+
+```
+
+
+### Función que obtiene resumen de variabilidad
+Seguidamente, definimos una función llamada _prop_variance()_, que devuelve una matriz con el autovalor, proporción de varianza de la componente y la varianza acumulada para cada una de las componentes principales. Uno de los parámetros a introducir a la función, es el límite de proporción de varianza explicada acumulada a considerar por parte de las componentes. De esta forma, nos quedaremos con el número de CPs que llegan a explicar el porcentaje total indicado.
+
+```{r}
+prop_variance <- function(acp, max_pct){
+  resumen <- matrix(NA, nrow = length(acp$sdev), ncol=3)
+  resumen[,1] <- acp$sdev^2 # autovalores
+  # pct variabilidad por cada CP
+  resumen[,2] <- 100*resumen[,1]/sum(resumen[,1])
+  resumen[,3] <- cumsum(resumen[,2])/100
+  colnames(resumen) <- c("Autovalor", "Porcentaje", 
+                         "Porcentaje acumulado")
+  n <- length(resumen[,3][resumen[,3] < max_pct])
+  cat("El número óptimo de CPs para explicar la varianza máxima introducida es:", n)
+  return (resumen[1:n,])
+}
+ncomp <- prop_variance(acp,0.81)
+ncomp
+```
+
+Ahora toca decidir cual es el número óptimo de componentes principales para reducir nuestro espacio de variables. Para ello, haremos uso de nuestro gráfico de sedimentación, donde se observa que a partir de la novena componente, las siguientes ya no aportán una cantidad de varianza explicada diferencial. Sin embargo, un 80% de varianza es suficiente para explicar el modelo, y añadir 3 componentes más, quizás no merece la pena para conseguir un 9% extra de varianza explicada. Además, una de las recomendaciones a seguir, es que todos los autovalores a retener sean mayores a 1, condición que se cumple solo en las primeras 8 componentes, por lo que de elegir 6, también se cumpliría dicho requisito, de esta manera, la elección final será 6.
+
+### Coeficientes y correlaciones de las CP
+Una vez decidido cuál es el número óptimo de CPs a considerar para reducir nuestro espacio de variables a un número más reducido, el siguiente paso es interpretar estas nuevas variables construidas. Se sabe que las CPs son combinaciones lineales de las variables originales, es decir, los coeficientes de las CP coinciden con los autovectores de los autovalores de la matriz de correlación. Conocemos en primer lugar los coeficientes de las nuevas variables calculadas, es decir, los coeficientes de cada una de las combinaciones lineales generadas, vemos así, el coeficiente (valor escalar) que multiplica a cada variable original para crear cada componente principal calculada. Conocidos los coeficientes de las nuevas variables calculadas, podemos saber cómo se correlacionan con las variables originales. Así, es posible ver qué importancia o peso tienen las variables de nuestro estudio sobre las nuevas componentes calculadas. De esta manera, el cálculo de las correlaciones se resume a, para cada par (variable original, componente principal), multiplicar cada coeficiente (previamente calculado con el comando rotation) por la desviación estándar de la componente analizada.
+
+```{r}
+n_opt <- 6
+coeficientes <- acp$rotation[,1:n_opt]
+coeficientes
+correlaciones <- acp$rotation %*% diag(acp$sdev)
+correlaciones[,1:n_opt]
+
+```
+
+Con el fin de interpretar mejor las correlaciones, graficamos un mapa de calor donde se puede apreciar mejor que variables tienen mayor peso sobre cada componente principal.
+
+```{r fig.width=9, fig.height=3}
+corrplot(t(correlaciones[,1:n_opt]), 
+         method="color", tl.cex = 0.45)
+```
+
+En cuanto a la primera componente, se puede afirmar que se ha construido principalmente por las siguientes variables: Con correlación positiva por LANZA, TSR, SEGJUG, FINALTHIRD, HIGHBLOCK, ALTLINDEF, ALTLINPRES, RATDUELO, POSE, PASINTE, PASCOM, PRECPASE, PASRUP, RUPLINDEF, RECULTER, CENINT, CENCOM, IIJ. Y con correlación negativa por LOWBLOCK y TRECBAL. La mayoría de estas varibales aportan información acerca de pases, posesión y juego ofensivo, por lo que a la primerá componente principal le asignaremos el nombre de "Juego ofensivo y dominancia con balón".
+
+En referencia a la segunda componente, las variables que tienen un mayor peso, las cules se correlacionan de manera positiva, son: RECUPE, INTERCE, TACKLE, IPGJO, Y DISTZ5, por lo que se le asignará el nombre de "Acciones defensivas y de alta intensidad". 
+
+Haciendo alusión a la tercera componente principal, esta se compone principalmente por: GOLES, PRECTIR y POREXREM, de manera que se le asignará el nombre de "Efectividad de cara a puerta", puesto que son variables relacionadas con la precisión y los goles.
+
+La cuarta componente se compone por DISTREC Y DISTZ4, por lo que será denominada "Distancia recorrida".
+
+La quinta componente la forman PRECENT Y ALTLINPRES, ambas variables no parecen tener mucho en común, y como la que mayor correlación tiene es PRECENT, nombraremos a la componente como "Calidad de los centros".
+
+Por último, la única variable que tiene un peso considerable en la sexta componente es BPO, por lo que denominaremos a la componente igual que a la variable original "Balón parado ofensivo".
+
+Como hemos mecionado anteriormente, el ACP crea nuevas variables que reciben el nombre de componentes principales, y cada componente se caracteriza por que existen variables originales que tienen un mayor peso en ellas. Estas últimas son las más relevantes y deberían estar altamente correlacionadas entre sí. Para comprobarlo, mediante gráficos de dispersión, representaremos pares de algunas de las variables con más influencia en la componente uno.
+
+```{r fig.width=9, fig.height=9}
+variables <- c("IIJ", "LANZA", "RECULTER", "TRECBAL", "FINALTHIRD", "POSE")
+colores = c(1:32)[data$Equipo]
+pairs(data[,variables], col = 1:23, upper.panel = NULL, pch = 20, cex = 1.5)
+title(main = "Correlación entre pares de variables CP1")
+```
+
+Gracias al gráfico anterior, podemos confirmar, de una manera muy visual, que todas las variables graficadas están altamente correlacionadas, unas de manera positiva como por ejemplo IIJ y LANZA, lo que quiere decir que lo normal es que si un equipo tiene valores altos en iniciativa de juego también los tenga en lanzamientos, y otras de manera negativa, como TRECBAL con el resto de variables, que de hecho es la única variable que en el gráfico se correlaciona negativamente con las demás, es decir, que cuanto más tiempo tarda un equipo en recuperar el balón, menos iniciativa de juego tendrá, y de la misma forma, menos lanzamientos, menos posesión tenga un equipo, menos pisará el último tercio, y menos recepciones tendrá en este.
+
+
+### Representación gráfica de las correlaciones entre variables y componentes
+
+En el siguiente gráfico, se representan todas las variables en un espacio de dos dimensiones, donde los ejes están formados por las dos primeras componentes principales. De esta manera, podemos interpretar las correlaciones entre las variables originales y las dos nuevas variables latentes o componentes principales. Para ello, cabe destacar que las variables originales están representadas con vectores, cuya longitug representa la variabilidad explicada por esa variable en las dos primeras componentes, es decir, cuanto más largo sea el vector, más variabilidad explicará la variable original. Por otro lado, la dirección de los vectores nos aporta información sobre la componente principal donde la variable tiene un mayor peso. Y por último, es importante resaltar que el ángulo que forman los vectores también es interpretable, puesto que si dos vectores son perpendiculares, es decir, forman un ángulo de 90º, las variables que representan son independientes para las dos primeras componentes principales. En cambio, si el ángulo es próximo a 180º la correlación es negativa y alta, y de la misma manera, si es próximo a 0º la correlación será positiva y alta. Por tanto, estamos ante un gráfico que no solo nos aporta información sobre cómo se relacionan las variables originales con las componentes, sino que tambien nos permite conocer como se relaciones las variables originales entre sí. Por ejemplo, la variable IIJ está fuertemente correlacionada de manera positiva con el juego ofensivo y la dominancia con balón, así como con otras variables como LANZA O CENINT, y al mismo tiempo, podemos apreciar que no sirve para explicar las acciones defensivas y de alta intensidad, además de observar que se correlaciona de manera negativa con variables como TRECBAL Y LOWBLOCK, y es casi independiente con variables como RECUPE. Por otro lado, vemos que las variables coloreadas con tonos más frios, coinciden con las variables cuyo vector es más corto, siendo variables que no explican bien ninguna de las dos componentes, ya que tienen muy poco peso en estas, vease PRECTIR o POREXREM, que no por coincidencia, son variables con mucho peso en la tercera componente.
+
+```{r fig.width=9, fig.height=9}
+fviz_pca_var(acp,
+             axes = c(1,2),
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+) + labs(x = "Juego ofensivo y dominancia con balón", y = "Acciones defensivas y de alta intensidad")
+```
+
+
+### Cálculo de puntaciones
+
+```{r}
+scores <- as.data.frame(acp$x[,1:n_opt])
+new_data <- cbind(data$Equipo, scores)
+colnames(new_data) <- c("Equipo", paste0("CP", 1:n_opt))
+cat("Nuevas dimensiones:", dim(new_data))
+new_data
+```
+
+### Representación sobre las 2 primeras componentes principales
+
+Para representar los equipos de manera visible y fácilmente interpretable, debemos hacerlo en un gráfico de dos dimensiones. Para ello es necesario elegir 2 componentes principales, y como por teoría, las dos primeras son las que mayor porcentaje de varianza explican, lo haremos sobre estas. Si bien, tambien podríamos hacerlo con la primera y la tercera componente, ya que esta última explica un porcentaje de varianza (8.05%) muy parecido a la segunda (9.53%).
+
+```{r fig.width=9, fig.height=7}
+plot(new_data[,2:3], type="n", main="Equipos del mundial femenino",
+     xlab=paste0("CP1 - Juego ofensivo y dominancia con balón (", round(ncomp[1,2], 2), "%)"),
+     ylab=paste0("CP2 - Acciones defensivas y de alta intensidad (", round(ncomp[2,2], 2), "%)"))
+     
+text(new_data[,2:3],labels=new_data$Equipo, cex=0.6, col= "indianred")
+abline(h=0,v=0,lty=2,col="royalblue")
+grid()
+```
+
+En primer lugar, para evitar malas interpretaciones, es importante destacar que los equipos que se encuentran cercanos al cero en ambas componentes, es decir, en el centro del gráfico, son equipos cuyas características no se explican de la mejor manera con las dos componentes seleccionadas, ya que tienen un peso muy bajo en ambas. No obstante, los equipos que se encuentran en posiciones mas altas o más bajas en cualquiera de las dos componentes o en ambas, si que tienen una interpretación. Por ejemplo, podemos afirmar que España, que salió campeón en el torneo, toma un valor muy alto para la primera componente, por lo que si recordamos la influencia que tenían las variables originales en dicha componente, podemos concluir que se trata del equipo con más poder ofensivo y más dominancia con el balón. No obstante, Francia, Brasil e Inglaterra también destacan en este aspecto, sin embargo Francia y Brasil se han visto obligadas a realizar muchos más esfuerzos defensivos que Inglaterra. Contrariamente a estos equipos, tenemos a Vietnam, que se caracteriza especialmente por poseer muy bajo poder ofensivo, el cual se ha visto dominado en todos los partidos de la fase de grupos, estableciendose como colista de su grupo al finalizar dicha fase. Otros equipos que no se han caracterizado especialemnte por su juego ofensivo y de posesión han sido Sudáfrica, Zambia, Marruecos, Panama, Haití, Jamaica, Nigeria, Filipinas y Costa Rica, de los cuales, el que más acciones defensivas ha protagonizado ha sido Sudafrica, que casualmente ha pasado la fase de grupos a pesar de no dominar con balón los encuentros. Y los que menos acciones defensivas han realizado han sido Costa Rica y Filipinas, que han caido en la fase de grupos. Otro caso diferente es Suiza, cuyas características no se explican bien por la primera componente, pero sí por la segunda, ya que es el equipo del mundial con mas acciones defensivas y de alta intensidad en la fase de grupos, el cual ha sobrevivido a este fase pasando a la siguiente.
+
+
+```{r fig.width=10, fig.height=8}
+library(ggrepel)
+regre <- read_excel("regre.xlsx")
+regrelineal <- read_excel("regrelineal.xlsx")
+grupo <- as.factor(regre$PASA)
+levels(grupo) <- c("Cae en fase de grupos", "Pasa la fase de grupos")
+fviz_pca_biplot(acp,
+                title = "Representación biplot de equipos y variables - CP2 / CP1",
+                col.ind = grupo, # Color por la calidad de la representación
+                gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                repel = TRUE,    # Evitar superposición de texto
+                label = "var") +
+  geom_text_repel(aes(label = data$Equipo, color= grupo), size = 3) + 
+  labs(x = "Juego ofensivo y dominancia con balón", 
+       y = "Acciones defensivas y de alta intensidad")
+
+Equipos <- c('Alemania', 'Argentina', 'Australia', 'Brasil', 'Canada', 'China', 'Colombia', 'Costa_Rica', 'Dinamarca', 'España', 'Filipinas', 'Francia', 'Haiti', 'Inglaterra', 'Italia', 'Jamaica', 'Japón', 'Korea', 'Marruecos', 'Nigeria', 'Noruega', 'Nueva_Zelanda', 'Paises_Bajos', 'Panama', 'Portugal','Rep_Irlanda', 'Sudafrica', 'Suecia', 'Suiza', 'USA', 'Vietnam', 'Zambia')
+tabla <- data.frame(Equipos)
+t(tabla)
+```
+
+En el gráfico biplot podemos observar la misma representación de equipos que en el gráfico previo, sin embargo, el biplot también nos permite representar las variables al mismo tiempo que los países, de manera que podemos intuir también que variables caracterizan más a cada equipo. Además, gracias a la agrupación que hemos realizado en azul y rojo podemos conocer de manera visual que equipos han sido exitosos y cuales no, pudiendo apreciar que hay más equipos de color azul (exitosos), en la parte derecha del gráfico, es decir, podríamos llegar a la conclusión de que los equipos con mayor dominio de balón y juego ofensivo tienen más posibilidades de superar la fase de grupos.
+
+
+
+## Regresión logística
+
+Hasta ahora podríamos tener indicios de cuales pueden ser las variables más importantes en nuestro estudio, sin embargo realizaremos un regresión logística para conocer con más seguridad si las variables que estamos estudiando son significativas o no a la hora de que un equipo caiga o pase la fase de grupos. Además, realizando un análisis individual de las variables significativas podremos conocer la probabilidad aproximada que un equipo tiene de pasar la fase de grupos respecto a sus valores en cada variable. Para ello, con el fin de evitar los problemas de colinealidad que nos produciría hacer la regresión con todas las variables originales, haremos la regresión con las componentes principales, ya que nos garantizan independencia entre las variable. No obstante, es importante destacar, que al realizar la regresión con las CPs, la interpretación de los coeficientes de las variables independientes sobre la variable dependiente introducida, pasar o caer en fase de grupos (PASA), carece de sentido, ya que estas variables latentes no poseen unidades de medida reales como pueden ser pases, disparos o centros.
+
+```{r}
+new_data 
+colnames(new_data) <- c("Equipo", "Juego ofensivo y dominancia...","Acciones defensivas y de alta...","Efectividad","Distancia recorrida", "Calidad de los centros", "Balón parado ofensivo")
+regre <- cbind(PASA = regre$PASA, new_data)[,-2]
+regre
+regresion_logistica <- glm(PASA ~ ., data = regre, family = "binomial")
+summary(regresion_logistica)
+
+
+```
+
+Una vez realizada la regresión logística y echando un vistazo a los resultados del test de wadl, comprobamos la significatividad de las variables, observando que solo tenemos dos variables significativas para explicar que un equipo caiga o pase la fase de grupos, las dos para un nivel de significancia del 0.05. Estas variables son "Juego ofensivo y dominancia con balón" y "Efectividad", por lo que llama la atención que la variable "Acciones defensivas y de alta intensidad" no sea significativa. No obstante, confirmaremos estos resultados de una manera visual e interpretable más adelante. A continuación, debemos validar nuestro modelo para confirmar que estos resultados son fiables, para ello verificaremos la bondad del ajuste.
+
+Comprobamos que el modelo se ajusta a los datos con el test de razón de verosimilitud donde nuestra hipótesis nula es que el modelo no se ajusta a los datos.Para ello, necesitamos tener un modelo nulo, es decir un modelo sin variables, con este fin hacemos la regresión logistica de nuestra variable respuesta PASA en función de solo un intercepto.
+
+Por otro lado, cuando hablamos de regresión lineal el coeficiente de determinación, R2 ,es una medida útil para saber cómo de bien se ajusta el modelo a los datos. Sin embargo, en regresión logística no podemos calcular dicho coeficiente, pero podemos calcular medidas análogas. En modelos de regresión logística binaria se espera encontar un valor de estos coeficientes entre 0.4 y 0.7, ya que el 1 que sería el ideal no existe.
+
+```{r message = FALSE, warning = FALSE}
+library(lmtest)
+regresion_logistica_nula <- glm(PASA ~ 1, data = regre, family = "binomial")
+lrtest1 <- lrtest(regresion_logistica,regresion_logistica_nula)
+lrtest1
+
+library(blorr)
+list(blr_rsq_adj_count(regresion_logistica), blr_rsq_cox_snell(regresion_logistica),blr_rsq_mckelvey_zavoina(regresion_logistica),blr_rsq_effron(regresion_logistica), blr_rsq_mcfadden(regresion_logistica), blr_rsq_nagelkerke(regresion_logistica))
+```
+
+
+Por un lado, la prueba chi-cuadrado resulta significativa por lo que rechazamos la hipótesis nula, y concluimos que nuestro modelo es significativo. Mientras que por otro lado, hemos obtenido valores decentes en los coeficientes análogos al coeficiente de determinación, entre 0.46 y 0.73, por lo que nuestro modelo es aceptable.
+
+
+
+### Análisis de las variables significativas
+
+```{r message = FALSE, warning = FALSE, fig.width=9, fig.height=7}
+require(utils)
+summary(regre[,2])
+new_CP1 <- expand.grid(CP1 = seq(-8.8,11.3,2),  # Creamos una tabla con todas las variables en condiciones fijas menos CP1
+                                 CP2 = mean(regre[,3]),
+                                 CP3 = mean(regre[,4]),
+                                 CP4 = mean(regre[,5]),
+                                 CP5 = mean(regre[,6]),
+                                 CP6 = mean(regre[,7]))
+colnames(new_CP1) <- c("Juego ofensivo y dominancia...","Acciones defensivas y de alta...","Efectividad","Distancia recorrida", "Calidad de los centros", "Balón parado ofensivo")
+
+d_CP1 <- cbind(new_CP1, predict(regresion_logistica, new_CP1, type= "response", se.fit = TRUE))
+d_CP1 <- within(d_CP1, {
+  LL <- fit - 1.96 * se.fit
+  UL <- fit + 1.96 * se.fit
+})
+
+library(ggplot2)
+ggplot(d_CP1, aes(x= d_CP1[["Juego ofensivo y dominancia..."]], y = fit)) + ylab("Probabiliad de pasar de grupo") + xlab("Juego ofensivo y dominancia con balón") + scale_x_continuous(breaks = seq(-8.8,12,2)) + scale_y_continuous(breaks = c(0,0.25,0.5,0.75,1)) + geom_ribbon(aes(ymin = LL, ymax= UL), alpha = .25) + geom_line(size=2.5, color= "aquamarine2") + ggtitle("Gráfica de probabilidad - Juego ofensivo y dominancia con balón")
+
+ 
+
+```
+En la gráfica se observa que hay una correlación positiva entre el juego ofensivo y la dominancia con balón respecto a la probabilidad de pasar la fase grupos. Lo que quiere decir que equipos con valores altos en dicha variable tendran más posibilidades de pasar de grupo que los equipos con valores bajos.
+
+
+
+```{r message = FALSE, warning = FALSE, fig.width=9, fig.height=7}
+
+summary(regre[,4])
+new_CP3 <- expand.grid(CP1 = mean(regre[,2]),
+                       CP2 = mean(regre[,3]),
+                       CP3 = seq(-5.9,2.5,2),
+                       CP4 = mean(regre[,5]),
+                       CP5 = mean(regre[,6]),
+                       CP6 = mean(regre[,7]))
+new_CP3
+colnames(new_CP3) <- c("Juego ofensivo y dominancia...","Acciones defensivas y de alta...","Efectividad","Distancia recorrida", "Calidad de los centros", "Balón parado ofensivo")
+
+d_CP3 <- cbind(new_CP3, predict(regresion_logistica, new_CP3, type= "response", se.fit = TRUE))
+d_CP3 <- within(d_CP3, {
+  LL <- fit - 1.96 * se.fit
+  UL <- fit + 1.96 * se.fit
+})
+ggplot(d_CP3, aes(x= d_CP3[["Efectividad"]], y = fit)) + ylab("Probabiliad de pasar de grupo") + xlab("Efectividad") + scale_x_continuous(breaks = seq(-5.9,2.5,2)) + scale_y_continuous(breaks = c(0,0.25,0.5,0.75,1)) + geom_ribbon(aes(ymin = LL, ymax= UL), alpha = .25) + geom_line(size=2.5, color= "aquamarine2") + ggtitle("Gráfica de probabilidad - Efectividad de cara a puerta")
+```
+
+En esta segunda gráfica también apreciamos una correlación positiva entre la efectividad y la probabilidad de pasar la fase grupos. Es decir, la efectividad de cara a puerta marcará la diferencia para muchos equipos a la hora de pasar de grupo. De hecho, es posible observar que para valores por debajo de -1.9 de efectividad, los equipos casí no tendrán posbilidades de pasar la fase de grupos.
+
+
+## Regresión lineal
+
+Con el fin de complementar los resultados de la regresión logística, hemos decido llevar a cabo una regresión lineal donde la variable dependiente sea el número de puntos medios por partido en la fase de grupos, de manera que podamos estudiar la significatividad de las variables también respecto a los puntos medios conseguidos, y no solo respecto a si un equipo pasa la fase de grupos o no.
+
+```{r message = FALSE, warning = FALSE}
+regrelineal <- cbind(PUNTOS = regrelineal$PUNTOS, new_data)[,-2]
+regresion_lineal <- lm(PUNTOS ~ ., data = regrelineal)
+summary(regresion_lineal)
+
+
+```
+
+En este caso podemos observar que no son dos, sino tres, las variables significativas, donde vuelven a coincidir como en la regresión logística "Juego ofensivo y dominancia con balón" y "Efectividad de cara a puerta", y tenemos una nueva variable significativa que es "Balón parado ofensivo". Además, esta vez, las variables son más significativas aún, ya que lo son para un nivel de significancia de 0,001 en el caso de las dos primeras, y de 0.01 para la tercera. A continuación, las analizaremos gráficamente para comprobar mejor estos resultados.
+
+En cuanto al ajuste del modelo, tenemos un P-valor de F muy pequeño por lo que rechazamos la hipótesis nula y concluimos que el modelo es significativo, lo que quiere decir que al menos un coeficiente del modelo explica alguna variación en nuestra variable respuesta que son los puntos. Por otro lado, nuestro coeficiente de determinación es de 0.75, lo que quiere decir que la regresión explica el 75% de la varianza total de los puntos medios por partido, por tanto estamos ante un buen modelo.
+
+### Análisis de las variables significativas
+
+```{r message = FALSE, warning = FALSE, fig.width=9, fig.height=7}
+ggplot(regrelineal, aes(x= regrelineal[["Juego ofensivo y dominancia..."]], y= PUNTOS)) + ylab("Puntos medios por partido") + xlab("Juego ofensivo y dominancia con balón") + geom_point() + geom_text_repel(aes(label = data$Equipo, color= grupo), size = 3) + geom_smooth(method = "lm", colour = "aquamarine2") + ggtitle("Correlación entre puntos medios por partido y el juego ofensivo")
+
+```
+
+Como podemos observar en el gráfico, la variable juego ofensivo y dominancia con balón se relaciona positivamente con los puntos medios, de manera que se espera que un equipo con un gran caudal de juego ofensivo y dominancia con balón consiga más puntos que un equipo con valores más bajos en dicha variable. Además, como es lógico también es posible distinguir que los equipos con más puntos medios son los que consiguen pasar la fase de grupos, cayendo en dicha fase los que poseen valores más bajos de esta variable. De está manera, es posible confirmar gráficamente que el juego ofensivo y de dominancia con balón es una variable significativa para predecir los puntos medios por partido.
+
+```{r message = FALSE, warning = FALSE, fig.width=9, fig.height=7}
+ggplot(regrelineal, aes(x= regrelineal$Efectividad, y= PUNTOS)) + ylab("Puntos medios por partido") + xlab("Efectividad de cara a puerta") + geom_point() + geom_text_repel(aes(label = data$Equipo, color= grupo), size = 3) + geom_smooth(method = "lm", colour = "aquamarine2") + ggtitle("Correlación entre puntos medios por partido y la efectividad de cara a puerta")
+```
+
+En este caso tenemos una gráfica muy parecida a la anterior, ya que también existe una relación lineal positiva entre los puntos medios por partido y la efectividad de cara a puerta, de manera que la interpretación de la gráfica sería la misma que la anterior, corroborando de la misma manera que la variable efectividad de cara a puerta resulta significativa a la hora de predecir la variable dependiente, puntos medios por partido.
+
+```{r message = FALSE, warning = FALSE, fig.width=9, fig.height=7}
+ggplot(regrelineal, aes(x= regrelineal[["Balón parado ofensivo"]], y= PUNTOS)) + ylab("Puntos medios por partido") + xlab("Balón parado ofensivo") + geom_point() + geom_text_repel(aes(label = data$Equipo, color= grupo), size = 3) + geom_smooth(method = "lm", colour = "aquamarine2") + ggtitle("Correlación entre puntos medios por partido y el balón parado ofensivo")
+```
+
+En la tercera gráfica, la que explica la correlación entre los puntos medios por partido y el balón parado ofensivo, no queda claro que esta última variable sea realmente significativa para predecir, puesto que nos encontramos una nube de puntos demsiado dispersos que no se ajustan bien a la recta de regresión. Además, fútbolísticamente no parece que haya una explicación lógica que respalde que los puntos medios por partido se relacionen de forma negativa con las acciones de balón parado ofensivo. En estos casos, debemos recordar que estamos analizando una muestra no muy grande de partidos y que algunos resultados pueden no ser del todo precisos, es por ello que en ocasiones como esta sea neceario racionalizar los resultados hallados y establecer una conclusión lógica apoyandonos en la representación gráfica, de este modo podemos concluir que en una cuyuntura así, los resultados no son fiables.
+
+
+## Análisis de Cluster
+
+Por último, representaremos gráficamente los clusteres cuyos centroides se establecerán agrupando los equipos en dos grupos lo más homogéneos posible intra-grupo y los más heterogéneos posible inter-grupo, de forma que se espera que si las variables representadas en el espacio de dos dimensiones son significativas para predecir que un equipo sobreviva o no a la fase de grupos, los clusteres separarán visiblemente el grupo de equipos que pasan a la siguiente ronda del grupo de equipos que caen en fase de grupos, de modo que las elipses roja y azul se superpongan los menos posible. De lo contrario, será imposible agrupar a los equipos con precisión y la variable del eje "y" carecerá de significatividad para explicar la variable dependiente.
+
+Es importante destacar, que en el espacio de dos dimensiones incluiremos sí o sí la variable "Juego ofensivo y dominancia con balón", puesto que además de ser significativa, es la componente uno, por lo que individualmente ya explica casi el 50% de la variabilidad del modelo. Además, anteriormente habíamos representado a los equipos en una gráfica bidimensional compuesta por dicha componente acompañada de la segunda, "Acciones defensivas y de alta intensidad", la cual resultó no ser significativa. Se pretende en esta ocación que con ayuda de los clusters se aprecie la diferencia de representar los equipos en un espacio donde el eje "y" estaba compuesto por dicha variable, a representarlos en una gráfica donde dicho eje se componga por la tercera componente "Efectividad de cara a puerta", que resultó si ser significativa.
+
+```{r fig.width=10, fig.height=8}
+
+fviz_pca_ind(acp, title= "Cluster - 1CP 2CP", axes = c(1,2), geom = FALSE, addEllipses = TRUE, col.ind = grupo, ellipse.level = 0.40, repel = TRUE) + geom_text_repel(aes(label = data$Equipo, color= grupo), size = 3) + labs(x = "Juego ofensivo y dominancia con balón", y = "Acciones defensivas y de alta intensidad")
+
+```
+
+Como se puede observar, en la primera gráfica las elipses de los clusters se superponen, ya que los equipos exitosos y no exitosos se encuentran mezclados entre sí. No obstante, debido a la influencia de la variable "Juego ofensivo y dominacia con balón" existe una pequeña tendencia donde los equipos ganadores se situan un poco más a la derecha y los perdedores un poco más a la izquierda. Dado lo anterior, podemos confirmar que la variable "Acciones defensivas y de alta intensidad" no es significativa para nuestra muestra de equipos.
+
+```{r fig.width=10, fig.height=8}
+fviz_pca_ind(acp, title= "Cluster - 1CP 3CP", axes = c(1,3), geom = FALSE, addEllipses = TRUE, col.ind = grupo, ellipse.level = 0.40, repel = TRUE) + geom_text_repel(aes(label = data$Equipo, color= grupo), size = 3) + labs(x = "Juego ofensivo y dominancia con balón", y = "Efectividad de cara a puerta")
+```
+
+En cambio, utilizando la tercera componente, "Efectividad de cara a puerta", como eje de ordenadas, apreciamos que si se puede separar los grupos de una manera más precisa. Con esta representación somos capaces de observar que los equipos con valores altos en ambas variables se situan en el cuadrante superior derecho de la gráfica, que no por coincidencia todos ellos han pasado la fase de grupos. En el cuadrante inferior izquierdo, contrariamente se situan equipos con bajos niveles de juego ofensivo y dominancia con balón, así como baja efectividad de cara a puerta. En dicho cuadrante encontramos que todos los equipos han caido en la fase de grupos excepto uno, Jamaica, que sería nuestra "rara avis".
+
+A continuación, con el fin de poder observar también el peso de las variables en la componente tres, "Efectividad de cara a puerta", vamos a replicar el gráfico biplot que representamos anteriormente con las dos primeras componente, pero en este caso lo graficaremos con la primera y tercera compoente.
+
+```{r fig.width=10, fig.height=8}
+fviz_pca_biplot(acp,
+                axes = c(1,3),
+                title = "Representación biplot de equipos y variables - CP3 / CP1",
+                col.ind = grupo, # Color por la calidad de la representación
+                gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                repel = TRUE,    # Evitar superposición de texto
+                label = "var") +
+  geom_text_repel(aes(label = data$Equipo, color= grupo), size = 3) + 
+  labs(x = "Juego ofensivo y dominancia con balón", 
+       y = "Efectividad de cara a puerta") 
+```
+
+En el biplot se puede apreciar que los equipos de la parte superior del gráfico son los que más efectividad de cara a puerta han tenido, destacando Japón por encima de todos, poseyendo el peso más grande para las variables originales "Porcentaje de éxito en el remate" y "Precisión de los tiros".
+
+## Conclusiones
+
+En primer lugar, es posible indicar que a lo largo de nuestro análisis ha quedado claro que las dos componentes más relevantes a la hora de explicar si un equipo va ser exitoso o no, son el "Juego ofensivo y dominancia con balón" y la "Efectividad de cara a puerta", bien sea para pasar de grupo o para conseguir gran cantidad de puntos medios por partido. Sin embargo, una variable latente que se podría anticipar como significativa inicialmente, dado su papel fundamental en un deporte como el fútbol, han sido las "Acciones defensivas y de alta intensidad", no obstante, despues de meter el "bisturí" en los datos, al final resultó no serlo, y evidentemente este es un resultado válido para nuestra muestra de datos, pero no quiere decir que no sea una variable a tener en cuenta en otras competiciones de fútbol femenino o masculino. 
+
+Por otro lado, cabe destacar que dichas componentes mencionadas, no son más que variables latentes creadas en nuestro estudio para poder trabajar los datos de una manera eficaz y conveniente, por lo que detras de esas variables, actuando como respaldo se encuentran nuestras variables originales, por lo que interpretando estas de manera racional, y fijandonos en las correlaciones entre variables y componentes desarrolladas en el estudio, se dictarán a continuación por orden de relevancia, de más a menos, las que, por sus pesos en las componentes, se consideran esenciales a la hora de caracterizar a un equipo como exitoso o no: Indice de iniciativa de juego (IIJ), recepciones en último tercio, posesión, tiros totales, pases en último tercio, pases de ruptura, ratio de tiros totales (TSR), centros intentados, pases intentados, completados y la precisión en el pase. Por otro lado, representando a la tercera componente, son de especial importancia el porcentaje de éxito en el remate y la precisión en el tiro. De esta manera, se puede concluir que se espera que los equipos con valores antos en las variables mencionadas tengan mayor probabilidad de éxito que los equipos que cuentan con estadísticas más pobres en dichas variables.
+
+Para terminar, es de gran relevancia recordar que las conclusiones obtenidas en este análisis son solo aplicables al mundial de fútbol femenino de 2023, y que aunque con este estudio seamos capaces de inferir una noción aproximada de los atributos que caracterizan al fútbol femenino, es preciso tener en consideración que para extrapolar estos resultados al fútbol femenino en general, son necesarios muchos más estudios con numerosos datos que proporcionen la robustez suficiente.
+</div>
